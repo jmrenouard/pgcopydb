@@ -15,6 +15,16 @@
 
 #include "parsing_utils.h"
 
+char pgcopydb_argv0[1024] = "9-version-parsing";
+char *pgcopydb_cmdline = "9-version-parsing";
+char ps_buffer[1024] = { 0 };
+size_t ps_buffer_size = 1024;
+size_t last_status_len = 0;
+void *system_res_array = NULL;
+void *log_semaphore = NULL;
+
+
+
 int
 main(int argc, char **argv)
 {
