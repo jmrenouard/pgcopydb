@@ -47,3 +47,7 @@ lib*.pc
 ci/Dockerfile.docs
 src/bin/pgcopydb/cscope.out
 src/bin/pgcopydb/catalog.h.uncrustify
+
+# Custom environment and log files
+.env
+*.log

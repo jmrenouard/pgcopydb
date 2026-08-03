@@ -1,0 +1,19 @@
+FROM rockylinux:8
+
+RUN dnf install -y --nogpgcheck epel-release https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm && \
+    dnf config-manager --set-enabled powertools && \
+    dnf -qy module disable postgresql && \
+    dnf install -y --nogpgcheck \
+        gcc make git gc-devel ncurses-devel readline-devel openssl-devel zlib-devel \
+        postgresql16-devel redhat-rpm-config \
+        lz4-devel libxslt-devel libxml2-devel pam-devel && \
+    dnf clean all
+
+WORKDIR /pgcopydb
+COPY . /pgcopydb
+
+ENV PATH=/usr/pgsql-16/bin:$PATH
+
+RUN make clean && make -j$(nproc)
+
+CMD ["./src/bin/pgcopydb/pgcopydb", "--version"]
