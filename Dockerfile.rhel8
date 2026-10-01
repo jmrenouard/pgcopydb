@@ -1,0 +1,78 @@
+FROM almalinux:8 AS build
+
+ARG PGVERSION=16
+
+RUN dnf install -y epel-release https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm \
+    && dnf -qy module disable postgresql \
+    && dnf install -y --enablerepo=powertools \
+        gcc \
+        make \
+        gawk \
+        diffutils \
+        git \
+        redhat-rpm-config \
+        gc-devel \
+        ncurses-devel \
+        postgresql${PGVERSION}-devel \
+        postgresql${PGVERSION}-libs \
+        libxml2-devel \
+        libxslt-devel \
+        libzstd-devel \
+        lz4-devel \
+        pam-devel \
+        openssl-devel \
+        krb5-devel \
+        zlib-devel \
+        readline-devel \
+        libselinux-devel \
+    && dnf clean all
+
+ENV PATH="/usr/pgsql-${PGVERSION}/bin:${PATH}"
+
+WORKDIR /usr/src/pgcopydb
+
+COPY Makefile .
+COPY GIT-VERSION-GEN .
+COPY GIT-VERSION-FILE* .
+COPY version* .
+
+# Build SQLite lib and binary
+COPY src/bin/lib/sqlite src/bin/lib/sqlite
+RUN make -C src/bin/lib/sqlite clean sqlite3.o sqlite3
+
+COPY src/bin/lib/jenkins src/bin/lib/jenkins
+COPY src/bin/lib/libs src/bin/lib/libs
+COPY src/bin/lib/log src/bin/lib/log
+COPY src/bin/lib/parson src/bin/lib/parson
+COPY src/bin/lib/pg src/bin/lib/pg
+COPY src/bin/lib/subcommands.c src/bin/lib/subcommands.c
+COPY src/bin/lib/uthash src/bin/lib/uthash
+
+COPY src/bin/Makefile src/bin/Makefile
+COPY src/bin/pgcopydb src/bin/pgcopydb
+
+RUN make clean && make -j$(nproc)
+
+# Test run stage with official Red Hat UBI 8 minimal
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest AS test-run
+
+ARG PGVERSION=16
+
+RUN rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
+             https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm \
+    && microdnf install -y \
+        gc \
+        ncurses-libs \
+        postgresql${PGVERSION}-libs \
+        openssl-libs \
+        readline \
+        zlib \
+        libzstd \
+        lz4-libs \
+    && microdnf clean all
+
+COPY --from=build /usr/src/pgcopydb/src/bin/pgcopydb/pgcopydb /usr/local/bin/pgcopydb
+COPY --from=build /usr/src/pgcopydb/src/bin/lib/sqlite/sqlite3 /usr/local/bin/sqlite3
+
+RUN pgcopydb --version
+CMD ["pgcopydb", "--help"]
