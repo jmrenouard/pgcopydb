@@ -51,9 +51,26 @@ instance (all databases) from source to target in a single operation.
 
 ## Documentation
 
-Full documentation is available online, including manual pages of all the
+Full upstream documentation is available online, including manual pages of all
 pgcopydb sub-commands. Check out
 [https://pgcopydb.readthedocs.io/](https://pgcopydb.readthedocs.io/en/latest/).
+
+Fork Diátaxis tutorials, ASD-STE100 operational runbooks, RHEL8 build/migration
+references, and architecture explanations are in
+[docs/diataxis/index.md](docs/diataxis/index.md).
+
+## Architecture Overview
+
+```mermaid
+flowchart LR
+    SRC["Source PostgreSQL"] -->|pg_dump pre-data / post-data| SCHEMA["Schema & Roles"]
+    SRC -->|Parallel COPY workers| COPY["Table Data & Blobs"]
+    SRC -->|Logical Decoding CDC| CDC["output.db -> replay.db (SQLite)"]
+    SCHEMA --> TGT["Target PostgreSQL"]
+    COPY --> TGT
+    CDC --> TGT
+    TGT -->|Concurrent workers| IDX["CREATE INDEX + USING INDEX"]
+```
 
 ```
 $ pgcopydb help
@@ -151,7 +168,7 @@ then a table summary with a line per table and some information (timing for
 the table COPY, cumulative timing for the CREATE INDEX commands), and then
 an overall summary that looks like the following:
 
-```
+```text
 22:37:01.564 22 INFO   Running pgcopydb version 0.18 from "/usr/bin/pgcopydb"
 22:37:01.565 22 INFO   [SOURCE] Copying database from "postgres://pagila@source/pagila?keepalives=1&keepalives_idle=10&keepalives_interval=10&keepalives_count=60"
 22:37:01.565 22 INFO   [TARGET] Copying database into "postgres://pagila@target/pagila?keepalives=1&keepalives_idle=10&keepalives_interval=10&keepalives_count=60"
@@ -171,48 +188,46 @@ an overall summary that looks like the following:
 22:37:01.965 35 INFO   STEP 7: constraints are built by the CREATE INDEX processes
 22:37:02.895 24 INFO   All step are now done,  1s100 elapsed
 22:37:02.895 24 INFO   Printing summary for 21 tables and 54 indexes
-
-  OID | Schema |             Name | Parts | copy duration | transmitted bytes | indexes | create index duration
-------+--------+------------------+-------+---------------+-------------------+---------+----------------------
-17182 | public |           rental |     5 |         250ms |           5477 kB |       3 |                  34ms
-17071 | public |             film |     4 |         124ms |           1336 kB |       5 |                  26ms
-17130 | public |        inventory |     4 |         104ms |            680 kB |       2 |                  17ms
-17082 | public |       film_actor |     2 |          60ms |            320 kB |       2 |                  15ms
-17200 | public |            staff |     3 |          96ms |            718 kB |       1 |                   5ms
-17157 | public | payment_p2022_02 |     2 |          46ms |            289 kB |       4 |                  28ms
-17161 | public | payment_p2022_03 |     2 |          60ms |            326 kB |       4 |                  20ms
-17165 | public | payment_p2022_04 |     2 |          28ms |            306 kB |       4 |                  22ms
-17169 | public | payment_p2022_05 |     2 |          54ms |            322 kB |       4 |                  26ms
-17173 | public | payment_p2022_06 |     2 |          40ms |            319 kB |       4 |                  25ms
-17177 | public | payment_p2022_07 |     2 |          60ms |            280 kB |       1 |                   6ms
-17086 | public |    film_category |     1 |          14ms |             69 kB |       1 |                   6ms
-17043 | public |         customer |     1 |          15ms |             67 kB |       4 |                  20ms
-17096 | public |          address |     1 |          17ms |             55 kB |       2 |                   7ms
-17153 | public | payment_p2022_01 |     1 |          16ms |             43 kB |       4 |                  19ms
-17104 | public |             city |     1 |          13ms |             24 kB |       2 |                   9ms
-17209 | public |            store |     1 |          10ms |             18 kB |       2 |                  11ms
-17055 | public |            actor |     1 |          14ms |           8328  B |       2 |                  13ms
-17063 | public |         category |     1 |          15ms |            540  B |       1 |                   3ms
-17112 | public |          country |     1 |          14ms |           3829  B |       1 |                   5ms
-17136 | public |         language |     1 |          14ms |            297  B |       1 |                   6ms
-
-
-                                               Step   Connection    Duration    Transfer   Concurrency
- --------------------------------------------------   ----------  ----------  ----------  ------------
-   Catalog Queries (table ordering, filtering, etc)       source       124ms                         1
-                                        Dump Schema       source        50ms                         1
-                                     Prepare Schema       target        94ms                         1
-      COPY, INDEX, CONSTRAINTS, VACUUM (wall clock)         both       834ms                        12
-                                  COPY (cumulative)         both       455ms     3213 kB             4
-                          CREATE INDEX (cumulative)       target       318ms                         4
-                           CONSTRAINTS (cumulative)       target         5ms                         4
-                                VACUUM (cumulative)       target       185ms                         4
-                                    Reset Sequences         both        12ms                         1
-                         Large Objects (cumulative)         both         0ms                         4
-                                    Finalize Schema         both       112ms                         4
- --------------------------------------------------   ----------  ----------  ----------  ------------
-                          Total Wall Clock Duration         both       1s100                        20
 ```
+
+| OID | Schema | Name | Parts | copy duration | transmitted bytes | indexes | create index duration |
+| ---: | :--- | :--- | ---: | ---: | ---: | ---: | ---: |
+| 17182 | public | rental | 5 | 250ms | 5477 kB | 3 | 34ms |
+| 17071 | public | film | 4 | 124ms | 1336 kB | 5 | 26ms |
+| 17130 | public | inventory | 4 | 104ms | 680 kB | 2 | 17ms |
+| 17082 | public | film_actor | 2 | 60ms | 320 kB | 2 | 15ms |
+| 17200 | public | staff | 3 | 96ms | 718 kB | 1 | 5ms |
+| 17157 | public | payment_p2022_02 | 2 | 46ms | 289 kB | 4 | 28ms |
+| 17161 | public | payment_p2022_03 | 2 | 60ms | 326 kB | 4 | 20ms |
+| 17165 | public | payment_p2022_04 | 2 | 28ms | 306 kB | 4 | 22ms |
+| 17169 | public | payment_p2022_05 | 2 | 54ms | 322 kB | 4 | 26ms |
+| 17173 | public | payment_p2022_06 | 2 | 40ms | 319 kB | 4 | 25ms |
+| 17177 | public | payment_p2022_07 | 2 | 60ms | 280 kB | 1 | 6ms |
+| 17086 | public | film_category | 1 | 14ms | 69 kB | 1 | 6ms |
+| 17043 | public | customer | 1 | 15ms | 67 kB | 4 | 20ms |
+| 17096 | public | address | 1 | 17ms | 55 kB | 2 | 7ms |
+| 17153 | public | payment_p2022_01 | 1 | 16ms | 43 kB | 4 | 19ms |
+| 17104 | public | city | 1 | 13ms | 24 kB | 2 | 9ms |
+| 17209 | public | store | 1 | 10ms | 18 kB | 2 | 11ms |
+| 17055 | public | actor | 1 | 14ms | 8328 B | 2 | 13ms |
+| 17063 | public | category | 1 | 15ms | 540 B | 1 | 3ms |
+| 17112 | public | country | 1 | 14ms | 3829 B | 1 | 5ms |
+| 17136 | public | language | 1 | 14ms | 297 B | 1 | 6ms |
+
+| Step | Connection | Duration | Transfer | Concurrency |
+| :--- | :--- | ---: | ---: | ---: |
+| Catalog Queries (table ordering, filtering, etc) | source | 124ms | | 1 |
+| Dump Schema | source | 50ms | | 1 |
+| Prepare Schema | target | 94ms | | 1 |
+| COPY, INDEX, CONSTRAINTS, VACUUM (wall clock) | both | 834ms | | 12 |
+| COPY (cumulative) | both | 455ms | 3213 kB | 4 |
+| CREATE INDEX (cumulative) | target | 318ms | | 4 |
+| CONSTRAINTS (cumulative) | target | 5ms | | 4 |
+| VACUUM (cumulative) | target | 185ms | | 4 |
+| Reset Sequences | both | 12ms | | 1 |
+| Large Objects (cumulative) | both | 0ms | | 4 |
+| Finalize Schema | both | 112ms | | 4 |
+| **Total Wall Clock Duration** | **both** | **1s100** | | **20** |
 
 ## Installing pgcopydb
 
