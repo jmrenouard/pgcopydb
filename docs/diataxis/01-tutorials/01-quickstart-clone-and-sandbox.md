@@ -14,7 +14,9 @@ In this tutorial, you run an isolated Docker Compose migration lab with `pgcopyd
 Inspect the local script syntax and container CLI before building test images:
 
 ```bash
-bash -n ./build_rhel8.sh ./run_migration.sh ./tests/unit/script/9-version-parsing.sh
+for s in ./build_rhel8.sh ./run_migration.sh ./tests/unit/script/9-version-parsing.sh; do
+    bash -n "$s"
+done
 ./build_rhel8.sh --help
 ./run_migration.sh --help
 ```

@@ -233,6 +233,13 @@ class TestPgcopydbDocsAndRhel8(unittest.TestCase):
         for ver in ("16.3", "18.1", "16.14.0", "18.3.10"):
             self.assertIn(ver, expected_out)
 
+        for md in sorted(DIATAXIS_DIR.rglob("*.md")):
+            for line in md.read_text(encoding="utf-8").splitlines():
+                m_bash_n = re.search(r"\bbash\s+-n\s+([^\n;#&|]+)", line)
+                if m_bash_n:
+                    args = [tok for tok in m_bash_n.group(1).split() if not tok.startswith("-")]
+                    self.assertEqual(len(args), 1, f"bash -n checks only first arg; split in {md.name}: {line}")
+
         if os.name == "posix" and shutil.which("bash"):
             for script in ("build_rhel8.sh", "run_migration.sh", "tests/unit/script/9-version-parsing.sh"):
                 syn = subprocess.run(["bash", "-n", str(ROOT / script)], capture_output=True, text=True, timeout=15)
