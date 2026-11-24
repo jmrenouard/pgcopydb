@@ -534,16 +534,20 @@ make check-docs     # verify docs build via Docker
 
 ### CI job structure (both workflows)
 
-```
-build_images (PG16)  ──┐
-build_images (PG17)  ──┤  (parallel, one per PGVERSION)
-build_images (PG18)  ──┘
-        │ artifact: docker-images-pgN.tar.zst
-        ▼
-build_package (PGN × TEST)   (parallel, needs: build_images)
-        downloads artifact → docker load → make tests/${TEST}
+```mermaid
+flowchart TD
+    BI16["build_images (PG16)"]
+    BI17["build_images (PG17)"]
+    BI18["build_images (PG18)"]
+    ART["Artifact: docker-images-pgN.tar.zst"]
+    BP["build_package (PGN x TEST): docker load then make tests/${TEST}"]
+    CI["ci_check (independent, no Docker, concurrent with build_images)"]
 
-ci_check  (independent, no Docker, runs concurrently with build_images)
+    BI16 --> ART
+    BI17 --> ART
+    BI18 --> ART
+    ART --> BP
+    CI --- BI16
 ```
 
 `build_images` builds `pgcopydb:N` and `pagila:N`, saves them as a compressed
